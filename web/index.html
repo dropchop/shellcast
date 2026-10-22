@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ShellCast</title>
+<style>
+  :root { color-scheme: dark; --bg: #0f1115; --panel: #171a20; --panel2: #1f232b; --line: #2a2f39; --text: #e9ecf1; --muted: #9aa3b2; --accent: #5b8cff; --ok: #3ddc84; --warn: #fbbf24; --bad: #ff6b6b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  #app { display: grid; grid-template-columns: 340px 1fr; grid-template-rows: 100vh; height: 100vh; }
+  @media (max-width: 860px) { #app { grid-template-columns: 1fr; grid-template-rows: auto 60vh; } aside { max-height: 40vh; } }
+  aside { background: var(--panel); border-right: 1px solid var(--line); overflow: auto; padding: 14px; }
+  main { position: relative; min-height: 0; }
+  canvas { display: block; }
+  h1 { font-size: 18px; margin: 0 0 4px; letter-spacing: .02em; } h1 small { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin: 18px 0 8px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  input, select, button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; }
+  input[type=checkbox] { width: auto; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  button { cursor: pointer; font-weight: 600; } button.primary { background: var(--accent); color: #0b1220; border-color: transparent; } button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .log { font: 11px/1.4 ui-monospace, Menlo, monospace; background: #0b0d12; border: 1px solid var(--line); border-radius: 8px; padding: 8px; max-height: 160px; overflow: auto; white-space: pre-wrap; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; } td, th { padding: 5px 4px; border-bottom: 1px solid var(--line); text-align: left; } th { color: var(--muted); font-weight: 500; } td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .note { font-size: 12px; color: var(--muted); } .warn { color: var(--warn); } .bad { color: var(--bad); } .ok { color: var(--ok); }
+  #hud { position: absolute; left: 12px; top: 12px; background: rgba(23,26,32,.85); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 12px; display: grid; gap: 6px; max-width: 280px; }
+  #hud .row label { margin: 0; display: inline; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  .jobs a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="app">
+<aside>
+  <h1>ShellCast <small id="ver"></small></h1>
+  <div class="note">Print-speed-first mold shells for silicone masks. Head frame: +Z crown, face toward −Y.</div>
+
+  <h2>1 · Sculpt</h2>
+  <input type="file" id="file" accept=".obj,.stl,.ply,.3mf,.glb">
+  <div class="note" id="fileNote">OBJ / STL / PLY / 3MF. Units are guessed (a head is 150–350 mm).</div>
+
+  <h2>2 · Mold type</h2>
+  <div class="grid2">
+    <div><label>Casting</label><select id="mold_type"><option value="mask">Mask (shells + head blank)</option><option value="puppet">Puppet (shells only)</option></select></div>
+    <div><label>Puppet cavity</label><select id="puppet_cavity"><option value="none">None</option><option value="rod">Rod hole (neck plug)</option></select></div>
+    <div><label>Rod Ø (mm)</label><input id="rod_diameter" type="number" step="1" value="12"></div>
+    <div><label>Rod depth (mm)</label><input id="rod_depth" type="number" step="5" value="120"></div>
+    <div><label>Mouth insert</label><select id="mouth_insert"><option value="false">No</option><option value="true">Yes</option></select></div>
+    <div><label>Closed-mouth version (optional)</label><input type="file" id="closed" accept=".obj,.stl,.ply,.3mf,.glb"></div>
+    <div><label>Head blank</label><select id="make_core"><option value="true">On</option><option value="false">Off</option></select></div>
+    <div><label>Fit / rescale</label><select id="fit_enabled"><option value="true">On</option><option value="false">Off</option></select></div>
+    <div><label>Silicone estimate</label><select id="estimate_silicone"><option value="true">On</option><option value="false">Off</option></select></div>
+    <div><label>Print estimate</label><select id="estimate_print"><option value="true">On</option><option value="false">Off</option></select></div>
+    <div><label>Vents</label><select id="make_vents"><option value="true">On</option><option value="false">Off</option></select></div>
+    <div><label>3D previews</label><select id="make_previews"><option value="true">On</option><option value="false">Off</option></select></div>
+    <div><label>Mouth wedge</label><select id="mouth_wedge"><option value="false">No</option><option value="true">Yes</option></select></div>
+    <div><label>Open-mouth version (for the wedge)</label><input type="file" id="open" accept=".obj,.stl,.ply,.3mf,.glb"></div>
+  </div>
+
+  <h2>3 · Orientation &amp; edits</h2>
+  <div class="grid2">
+    <div><label>Orientation</label><select id="orient"><option value="auto">Auto-detect</option><option value="keep">Keep (Z up, face −Y)</option><option value="+y,+z">Y up, face +Z</option><option value="+y,-z">Y up, face −Z</option><option value="+z,+y">Z up, face +Y</option></select></div>
+    <div><label>Close the mouth</label><select id="close_mouth"><option value="false">No</option><option value="true">Yes</option></select></div>
+    <div><label>Mouth bridge radius (mm)</label><input id="mouth_radius" type="number" step="1" value="15"></div>
+    <div><label>Mouth method</label><select id="mouth_mode"><option value="auto">Auto</option><option value="pinch">Pinch</option><option value="hinge">Hinge</option></select></div>
+  </div>
+
+  <h2>3 · Fit</h2>
+  <div class="grid2">
+    <div><label>Rescale to fit</label><select id="fit_target"><option value="none">Keep sculpt size</option><option value="male">Average adult male (573 mm)</option><option value="female">Average adult female (549 mm)</option><option value="custom">Custom head circumference</option></select></div>
+    <div><label>Custom circumference (mm)</label><input id="fit_circumference_mm" type="number" step="1" value="0" placeholder="tape over the brows"></div>
+    <div><label>Ease (%)  − snug · + loose</label><input id="fit_ease_pct" type="number" step="0.5" value="-2"></div>
+    <div><label>Extra scale ×</label><input id="scale" type="number" step="0.01" value="1"></div>
+  </div>
+  <div class="note">Fits the mask's <i>inner</i> surface (the core) at the hat line: sculpt circumference − 2π·mask thickness. Uniform scale keeps the sculpt's proportions.</div>
+
+  <h2>3 · Parting</h2>
+  <div class="grid2">
+    <div><label>Pull axis</label><select id="pull_axis"><option value="x">x · left / right halves</option><option value="y">y · front / back halves</option></select></div>
+    <div><label>Parting offset (mm)</label><input id="parting_offset" type="number" step="1" value="0"></div>
+    <div><label>Neck plane above bottom (mm)</label><input id="neck_offset" type="number" step="1" value="0"></div>
+    <div><label>Collar height (mm)</label><input id="collar_height" type="number" step="1" value="25"></div>
+  </div>
+
+  <h2>4 · Shell &amp; core</h2>
+  <div class="grid2">
+    <div><label>Shell thickness w</label><input id="shell_thickness" type="number" step="0.5" value="3.5"></div>
+    <div><label>Mask thickness t</label><input id="mask_thickness" type="number" step="0.5" value="5"></div>
+    <div><label>Head blank shape</label><select id="core_shape"><option value="head">Generic human head</option><option value="sculpt">Follow the sculpt</option></select></div>
+    <div><label>Inside of mask: smooth (mm, 0 = follow sculpt)</label><input id="core_smooth_mm" type="number" step="1" value="0"></div>
+    <div><label>Flange width F</label><input id="flange_width" type="number" step="1" value="20"></div>
+    <div><label>Flange thickness T</label><input id="flange_thickness" type="number" step="0.5" value="6"></div>
+    <div><label>Bolt Ø</label><input id="bolt_diameter" type="number" step="0.5" value="5"></div>
+    <div><label>Bolt spacing</label><input id="bolt_spacing" type="number" step="5" value="70"></div>
+    <div><label>Key radius</label><input id="key_radius" type="number" step="0.5" value="4"></div>
+    <div><label>Core wall k</label><input id="core_wall" type="number" step="0.5" value="2.5"></div>
+    <div><label>Core fill radius (folds)</label><input id="core_close_radius" type="number" step="1" value="6"></div>
+    <div><label>Core strip radius (fins)</label><input id="core_open_radius" type="number" step="1" value="4"></div>
+    <div><label>Voxel pitch (mm)</label><input id="voxel_pitch" type="number" step="0.25" value="1.5"></div>
+    <div><label>Max vents (shell)</label><input id="max_vents" type="number" step="1" value="12"></div>
+    <div><label>Vent holes in head blank</label><select id="core_vents"><option value="false">No</option><option value="true">Yes</option></select></div>
+  </div>
+
+  <h2>5 · Printer</h2>
+  <div class="grid2">
+    <div><label>Nozzle</label><input id="printer.nozzle" type="number" step="0.1" value="0.6"></div>
+    <div><label>Line width</label><input id="printer.line_width" type="number" step="0.05" value="0.7"></div>
+    <div><label>Layer height</label><input id="printer.layer_height" type="number" step="0.05" value="0.3"></div>
+    <div><label>Flow mm³/s (calibrated)</label><input id="printer.flow_mm3_s" type="number" step="1" value="15"></div>
+    <div><label>Bed X</label><input id="printer.bed_x" type="number" step="10" value="400"></div>
+    <div><label>Bed Y</label><input id="printer.bed_y" type="number" step="10" value="400"></div>
+    <div><label>Bed Z</label><input id="printer.bed_z" type="number" step="10" value="400"></div>
+    <div><label>Density g/cm³</label><input id="printer.density_g_cm3" type="number" step="0.01" value="1.24"></div>
+  </div>
+  <h2>5 · Silicone</h2>
+  <div class="grid2">
+    <div><label>Silicone</label><select id="silicone"><option value="fx-pro">Dragon Skin FX-Pro</option><option value="dragon-skin-10">Dragon Skin 10</option><option value="ecoflex-30">Ecoflex 00-30</option><option value="custom">Custom SG</option></select></div>
+    <div><label>Custom SG</label><input id="silicone_sg" type="number" step="0.001" value="1.062"></div>
+    <div><label>Overage %</label><input id="pour_overage_pct" type="number" step="1" value="15"></div>
+  </div>
+
+  <h2>6 · Export</h2>
+  <div class="row"><label class="row" style="margin:0"><input type="checkbox" id="export_obj" checked> OBJ</label><label class="row" style="margin:0"><input type="checkbox" id="export_stl"> STL</label><label class="row" style="margin:0"><input type="checkbox" id="export_3mf"> 3MF</label></div>
+  <div class="note">Plain geometry, oriented for printing. Pick nozzle, walls, supports and speeds in OrcaSlicer.</div>
+
+  <div style="margin-top:14px"><button class="primary" id="go">Generate mold set</button></div>
+  <div class="log" id="log" style="margin-top:10px" hidden></div>
+
+  <h2>Result</h2>
+  <div id="result" class="note">No job yet.</div>
+
+  <details style="margin-top:14px"><summary>Previous jobs</summary><div class="jobs" id="jobs"></div></details>
+</aside>
+<main>
+  <div id="hud">
+    <div id="layers"></div>
+    <div class="row"><label for="sec">Section</label><select id="secAxis" style="width:auto"><option value="x">X</option><option value="y">Y</option><option value="z">Z</option></select><input id="sec" type="range" min="0" max="100" value="100" style="flex:1"></div>
+    <div class="row"><label><input type="checkbox" id="showSculpt" checked> sculpt</label><label><input type="checkbox" id="showMarkers" checked> bolts / vents</label><label><input type="checkbox" id="assembled" checked> assembled</label></div>
+  </div>
+</main>
+</div>
+
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.js","three/addons/":"/vendor/three/addons/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/GLTFLoader.js';
+
+const $ = (id) => document.getElementById(id);
+const PARAM_IDS = ['make_core','fit_enabled','estimate_silicone','estimate_print','make_vents','make_previews','mouth_wedge','mouth_insert','mold_type','puppet_cavity','rod_diameter','rod_depth','core_shape','core_vents','core_smooth_mm','silicone','silicone_sg','pour_overage_pct','key_radius','orient','close_mouth','mouth_radius','mouth_mode','fit_target','fit_circumference_mm','fit_ease_pct','scale','pull_axis','parting_offset','neck_offset','collar_height','shell_thickness','mask_thickness','flange_width','flange_thickness','bolt_diameter','bolt_spacing','core_wall','core_close_radius','core_open_radius','voxel_pitch','max_vents',
+  'printer.nozzle','printer.line_width','printer.layer_height','printer.flow_mm3_s','printer.bed_x','printer.bed_y','printer.bed_z','printer.density_g_cm3'];
+const COLORS = { shell_A: 0x5b8cff, shell_B: 0x7ad3ff, core: 0xff9f43, neck_plug: 0xffd23f, mouth_insert: 0xff2a6d, mouth_cover: 0xc060ff, mouth_wedge: 0x7cff6b, sculpt: 0x9aa3b2 };
+
+// ---- viewer ----
+const main = document.querySelector('main');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.localClippingEnabled = true;
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+main.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0f1115);
+const camera = new THREE.PerspectiveCamera(45, 1, 1, 5000); camera.position.set(400, -500, 300); camera.up.set(0, 0, 1);
+const controls = new OrbitControls(camera, renderer.domElement); controls.target.set(0, 0, 0);
+const mc = document.createElement('canvas'); mc.width = mc.height = 256; const g2 = mc.getContext('2d');
+const grad = g2.createRadialGradient(104, 96, 10, 128, 128, 128); grad.addColorStop(0, '#f4f4f4'); grad.addColorStop(0.55, '#b9b9b9'); grad.addColorStop(0.92, '#5a5a5a'); grad.addColorStop(1, '#2e2e2e');
+g2.fillStyle = grad; g2.fillRect(0, 0, 256, 256); const matcap = new THREE.CanvasTexture(mc); matcap.colorSpace = THREE.SRGBColorSpace;
+const grid = new THREE.GridHelper(600, 30, 0x2a2f39, 0x1f232b); grid.rotation.x = Math.PI / 2; scene.add(grid);
+const clipPlane = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 1e6);
+const objects = {}, markers = new THREE.Group(); scene.add(markers);
+function resize() { const w = main.clientWidth, h = main.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+let dirty = true; const render = () => { dirty = true; }; controls.addEventListener('change', render);
+(function loop() { requestAnimationFrame(loop); if (dirty) { dirty = false; renderer.render(scene, camera); } })();
+setInterval(render, 1000);
+
+let bounds = null, currentJob = null, transforms = {};
+function clearScene() { for (const k in objects) { scene.remove(objects[k]); delete objects[k]; } markers.clear(); $('layers').innerHTML = ''; }
+function addPart(name, url, matrixInv) {
+  return new Promise((res) => new GLTFLoader().load(url, (g) => {
+    const mesh = g.scene;
+    mesh.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshMatcapMaterial({ matcap, color: COLORS[name] || 0xcccccc, side: THREE.DoubleSide, clippingPlanes: [clipPlane], clipShadows: true, transparent: name === 'sculpt', opacity: name === 'sculpt' ? .35 : 1 }); } });
+    // GLB is Y-up; our parts are Z-up in the file: three's GLTFLoader keeps coordinates as stored, trimesh writes Z-up as-is
+    if (matrixInv) mesh.applyMatrix4(matrixInv);
+    objects[name] = mesh; scene.add(mesh);
+    const row = document.createElement('label'); row.className = 'row'; row.innerHTML = `<input type="checkbox" checked><span class="sw" style="background:#${(COLORS[name] || 0xcccccc).toString(16).padStart(6, '0')}"></span>${name}`;
+    row.querySelector('input').onchange = (e) => { mesh.visible = e.target.checked; }; $('layers').appendChild(row);
+    res(mesh);
+  }, undefined, () => res(null)));
+}
+function fitCamera() {
+  const box = new THREE.Box3(); for (const k in objects) box.expandByObject(objects[k]);
+  if (box.isEmpty()) return; bounds = box;
+  const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()).length();
+  controls.target.copy(c); camera.position.copy(c).add(new THREE.Vector3(s * .7, -s * .9, s * .5)); camera.near = s / 100; camera.far = s * 10; camera.updateProjectionMatrix();
+  updateClip();
+}
+function updateClip() {
+  if (!bounds) return; const ax = $('secAxis').value, f = +$('sec').value / 100;
+  const n = new THREE.Vector3(ax === 'x' ? -1 : 0, ax === 'y' ? -1 : 0, ax === 'z' ? -1 : 0);
+  const lo = bounds.min[ax], hi = bounds.max[ax]; const v = lo + (hi - lo) * f + 0.5;
+  clipPlane.set(n, v); // keeps points with n·p + d >= 0 → p[ax] <= v
+}
+$('sec').oninput = updateClip; $('secAxis').onchange = updateClip;
+$('showSculpt').onchange = (e) => { if (objects.sculpt) objects.sculpt.visible = e.target.checked; };
+$('showMarkers').onchange = (e) => { markers.visible = e.target.checked; };
+$('assembled').onchange = () => currentJob && showJob(currentJob, true);
+
+// ---- job flow ----
+const params = () => { const d = {}; for (const id of PARAM_IDS) { const el = $(id); let v = el.type === 'number' ? +el.value : el.value; if (v === 'true') v = true; if (v === 'false') v = false; if (id.startsWith('printer.')) (d.printer ||= {})[id.slice(8)] = v; else d[id] = v; } d.export_obj = $('export_obj').checked; d.export_stl = $('export_stl').checked; d.export_3mf = $('export_3mf').checked; return d; };
+let pollT = null;
+$('go').onclick = async () => {
+  const f = $('file').files[0]; if (!f) { $('fileNote').textContent = 'Choose a mesh first.'; return; }
+  $('go').disabled = true; $('log').hidden = false; $('log').textContent = 'Uploading…'; $('result').textContent = '';
+  const fd = new FormData(); fd.append('file', f); fd.append('params', JSON.stringify(params()));
+  const cf = $('closed').files[0]; if (cf && params().mouth_insert) fd.append('closed', cf);
+  const of = $('open').files[0]; if (of && params().mouth_wedge) fd.append('open', of);
+  try { const r = await fetch('/api/jobs', { method: 'POST', body: fd }); const d = await r.json(); if (!r.ok) throw new Error(d.detail || r.statusText); currentJob = d.id; poll(); }
+  catch (e) { $('log').textContent = 'Error: ' + e.message; $('go').disabled = false; }
+};
+async function poll() {
+  clearTimeout(pollT); if (!currentJob) return;
+  const d = await (await fetch(`/api/jobs/${currentJob}`)).json();
+  $('log').textContent = (d.log || []).slice(-40).join('\n'); $('log').scrollTop = $('log').scrollHeight;
+  if (d.status === 'running' || d.status === 'queued') { pollT = setTimeout(poll, 1500); return; }
+  $('go').disabled = false; renderResult(d); showJob(currentJob); loadJobs();
+}
+const hms = (s) => `${Math.floor(s / 3600)}h ${String(Math.floor(s % 3600 / 60)).padStart(2, '0')}m`;
+function renderResult(d) {
+  const rep = d.report; if (!rep) return;
+  if (rep.status !== 'done') { $('result').innerHTML = `<div class="bad">Failed: ${rep.error}</div>`; return; }
+  let h = `<table><tr><th>Part</th><th>Orient.</th><th class="num">g</th><th class="num">time</th><th></th></tr>`;
+  for (const [n, e] of Object.entries(rep.parts)) h += `<tr><td><span class="sw" style="background:#${(COLORS[n] || 0xcccccc).toString(16).padStart(6, '0')}"></span>${n}</td><td>${e.orientation}</td><td class="num">${e.filament_g.toFixed(0)}</td><td class="num">${e.time_geom}</td><td>${Object.entries(e.files).map(([k, v]) => `<a href="/api/jobs/${d.id}/file/${v}">${k}</a>`).join(' ')}${e.fits_bed ? '' : ' <span class="bad">too big</span>'}</td></tr>`;
+  h += `<tr><th>Total</th><td></td><td class="num"><b>${rep.totals.filament_g.toFixed(0)}</b></td><td class="num"><b>${rep.totals.time_geom}</b></td><td><a href="/api/jobs/${d.id}/zip">zip</a></td></tr></table>`;
+  const v = rep.validation || {}, bc = rep.block_mold_comparison;
+  const si = rep.silicone; if (si && !si.skipped) h += `<div class="note" style="margin-top:8px"><b>Silicone per mask:</b> ${si.mask_volume_ml.toFixed(0)} ml · mix ${si.mix_g.toFixed(0)} g (A ${si.part_a_g.toFixed(0)} + B ${si.part_b_g.toFixed(0)}) of ${si.product} · have ${si.order_g.toFixed(0)} g ready with ${si.overage_pct}% overage</div>`;
+  if (si && si.puppet) h += `<div class="note">Puppet from this mold (${si.puppet.note}): solid ≈ ${si.puppet.solid_volume_ml.toFixed(0)} ml (${si.puppet.solid_mix_g.toFixed(0)} g mix), or a ${si.puppet.slush_skin_mm} mm slush skin ≈ ${si.puppet.slush_volume_ml.toFixed(0)} ml (${si.puppet.slush_mix_g.toFixed(0)} g).</div>`;
+  h += `<div class="note" style="margin-top:8px">Silicone: <b>${((v.silicone_volume_mm3 || 0) / 1000).toFixed(0)} cm³</b> · vents ${rep.vents.length} · bolts ${rep.bolts.length}${bc ? ` · block mold would be ≈ ${bc.filament_g_est.toFixed(0)} g / ${hms(bc.time_s_est)} ${bc.saving_factor_filament != null ? `(${bc.saving_factor_filament.toFixed(1)}× more filament)` : ''}` : ''}</div>`;
+  const ft = rep.fit; if (ft) h += `<div class="note">Hat line: sculpt ${ft.sculpt_hat_circumference_after_mm.toFixed(0)} mm → mask inner <b>${ft.mask_inner_circumference_after_mm.toFixed(0)} mm</b>${ft.target_circumference_mm ? ` for ${ft.target_label} (${ft.ease_pct > 0 ? '+' : ''}${ft.ease_pct}% ease) · scaled ×${ft.scale.toFixed(3)}` : (Math.abs(ft.scale - 1) > 1e-6 ? ` · scaled ×${ft.scale.toFixed(3)}` : ' · not rescaled')}</div>`;
+  if (v.core_shell_interference_mm3 > 5) h += `<div class="warn">Core intersects shell by ${v.core_shell_interference_mm3.toFixed(0)} mm³</div>`;
+  for (const w of rep.warnings || []) h += `<div class="warn">⚠ ${w}</div>`;
+  for (const n of rep.notes || []) h += `<div class="note">· ${n}</div>`;
+  h += `<div class="note">Input: ${rep.input.triangles_in.toLocaleString()} tris, ${rep.input.extents.map(x => x.toFixed(0)).join('×')} mm, ${rep.input.method}${rep.input.rewrap ? ` (deviation p95 ${rep.input.rewrap.deviation_p95.toFixed(2)} mm)` : ''} · ${rep.elapsed_s}s</div>`;
+  $('result').innerHTML = h;
+}
+async function showJob(jid, keepCam) {
+  const d = await (await fetch(`/api/jobs/${jid}`)).json(); const rep = d.report; if (!rep || rep.status !== 'done') return;
+  currentJob = jid; clearScene(); const assembled = $('assembled').checked;
+  const loads = [];
+  for (const [n, e] of Object.entries(rep.parts)) {
+    const M = new THREE.Matrix4().fromArray(e.transform.flat()).transpose();   // report stores row-major 4x4
+    loads.push(addPart(n, `/api/jobs/${jid}/preview/${n}.glb`, assembled ? M.clone().invert() : null));
+  }
+  if (assembled) loads.push(addPart('sculpt', `/api/jobs/${jid}/preview/sculpt.glb`, null));
+  await Promise.all(loads);
+  if (objects.sculpt) objects.sculpt.visible = $('showSculpt').checked;
+  if (assembled) {
+    const mk = (xyz, color, r) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), new THREE.MeshBasicMaterial({ color })); m.position.set(...xyz); markers.add(m); };
+    for (const b of rep.bolts || []) mk(b.xyz, 0xfbbf24, 3);
+    for (const v of rep.vents || []) mk(v.xyz, v.on === 'core' ? 0xff6b6b : 0x3ddc84, 2.5);
+    if (rep.sprue) mk(rep.sprue.xyz, 0xff9f43, 6);
+  }
+  if (!keepCam) fitCamera(); else { bounds = new THREE.Box3(); for (const k in objects) bounds.expandByObject(objects[k]); updateClip(); }
+  renderResult(d);
+}
+async function loadJobs() {
+  const list = await (await fetch('/api/jobs')).json();
+  $('jobs').innerHTML = list.map(j => `<div class="row" style="justify-content:space-between;padding:4px 0"><a href="#" data-id="${j.id}">${j.name || j.id}</a><span class="note">${j.status}${j.totals ? ' · ' + j.totals.filament_g.toFixed(0) + ' g · ' + j.totals.time_geom : ''}</span></div>`).join('') || '<div class="note">none</div>';
+  $('jobs').querySelectorAll('a').forEach(a => a.onclick = (e) => { e.preventDefault(); showJob(a.dataset.id); });
+}
+(async () => {
+  const s = await (await fetch('/api/status')).json(); $('ver').textContent = 'v' + s.version;
+  loadJobs();
+})();
+</script>
+</body>
+</html>

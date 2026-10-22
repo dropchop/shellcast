@@ -1,0 +1,22 @@
+# ShellCast — user-level systemd service.
+# Edit WorkingDirectory to where you cloned the repo (%h is your home directory), then install:
+# Install:  cp shellcast.service ~/.config/systemd/user/ && systemctl --user daemon-reload && systemctl --user enable --now shellcast
+[Unit]
+Description=ShellCast (mold shell generator web app)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/shellcast
+ExecStart=/usr/bin/python3 -m shellcast serve --host 127.0.0.1 --port 5070
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# A runaway job dies here instead of taking the whole machine down; the job process is killed first.
+MemoryMax=10G
+MemorySwapMax=0
+OOMPolicy=continue
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

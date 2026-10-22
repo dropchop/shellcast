@@ -1,0 +1,21 @@
+# Python / Node / tooling
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.pytest_cache/
+# logs, backups, OS junk
+*.log
+*.bak
+.DS_Store
+# secrets and local settings — never commit
+.env
+.env.*
+*.pem
+*.key
+
+# shellcast job output / caches
+jobs/
+out/
+*.egg-info/

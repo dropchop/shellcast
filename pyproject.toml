@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shellcast"
+version = "0.1.0"
+description = "Print-speed-first mold shell generator for silicone masks and prosthetics"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "dropchop" }]
+requires-python = ">=3.10"
+dependencies = [
+  "trimesh>=5.1,<6", "manifold3d>=3.2,<4", "libigl>=2.5", "scikit-image>=0.25,<0.26", "numpy>=1.26",
+  "scipy>=1.8", "fast-simplification>=0.2", "fastapi>=0.115", "uvicorn[standard]>=0.30", "python-multipart>=0.0.9",
+  "matplotlib>=3.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/dropchop/shellcast"
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff"]
+
+[project.scripts]
+shellcast = "shellcast.cli:main"
+
+# web/ ships inside the wheel as shellcast/web (the server mounts it at import)
+[tool.setuptools]
+packages = ["shellcast", "shellcast.web"]
+package-dir = { "shellcast.web" = "web" }
+
+[tool.setuptools.package-data]
+"shellcast.web" = ["*.html", "vendor/three/*.js", "vendor/three/addons/*.js", "vendor/three/LICENSE"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# slow: the extra full-pipeline variants. `-m "not slow"` leaves them out; a plain `python3 -m pytest` runs everything.
+markers = ["slow: a full-pipeline variant left out of the fast run"]
+
+[tool.ruff]
+line-length = 140
